@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>剪贴板助手</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f4f4f9; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; position: sticky; top: 0; background: #f4f4f9; padding: 10px 0; }
+        button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; transition: 0.2s; }
+        .btn-clear { background-color: #ff4d4f; color: white; }
+        .btn-file { background-color: #1890ff; color: white; position: relative; }
+        #fileInput { display: none; }
+        
+        #buttonContainer { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .name-btn { background-color: white; color: #333; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .name-btn:active { background-color: #e6f7ff; transform: scale(0.95); }
+        
+        .status { margin-top: 10px; font-size: 12px; color: #666; text-align: center; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <button class="btn-clear" onclick="clearClipboard()">清空剪贴板</button>
+        <button class="btn-file" onclick="document.getElementById('fileInput').click()">打开 TXT 文件</button>
+        <input type="file" id="fileInput" accept=".txt">
+    </div>
+
+    <div id="buttonContainer">
+        </div>
+
+    <div id="status" class="status">请先导入 TXT 文件</div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const container = document.getElementById('buttonContainer');
+        const status = document.getElementById('status');
+
+        // 1. 读取文件并生成按钮
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const content = event.target.result;
+                const lines = content.split(/\r?\n/);
+                
+                container.innerHTML = ''; // 清空旧按钮
+                let count = 0;
+
+                lines.forEach(line => {
+                    const trimmedLine = line.trim();
+                    if (trimmedLine) { // 仅处理非空白行
+                        createButton(trimmedLine);
+                        count++;
+                    }
+                });
+                status.innerText = `成功导入 ${count} 条数据`;
+            };
+            reader.readAsText(file);
+        });
+
+        // 2. 创建名字按钮
+        function createButton(text) {
+            const btn = document.createElement('button');
+            btn.className = 'name-btn';
+            btn.innerText = text;
+            btn.onclick = () => appendToClipboard(text);
+            container.appendChild(btn);
+        }
+
+        // 3. 核心功能：读取并追加
+        async function appendToClipboard(newName) {
+            try {
+                // 尝试读取当前剪贴板
+                let currentText = "";
+                try {
+                    currentText = await navigator.clipboard.readText();
+                } catch (err) {
+                    console.warn("无法读取剪贴板，可能未授权，将直接写入。");
+                }
+
+                // 拼接内容（如果剪贴板已有内容，可以加个空格或换行，这里演示直接连接）
+                const updatedText = currentText + newName;
+                
+                // 写回剪贴板
+                await navigator.clipboard.writeText(updatedText);
+                showTempStatus(`已添加: ${newName}`);
+            } catch (err) {
+                alert('操作失败: ' + err);
+            }
+        }
+
+        // 4. 清空剪贴板
+        async function clearClipboard() {
+            try {
+                await navigator.clipboard.writeText("");
+                showTempStatus("剪贴板已清空");
+            } catch (err) {
+                alert('清空失败');
+            }
+        }
+
+        function showTempStatus(msg) {
+            const oldText = status.innerText;
+            status.innerText = msg;
+            setTimeout(() => status.innerText = oldText, 1500);
+        }
+    </script>
+</body>
+</html>
