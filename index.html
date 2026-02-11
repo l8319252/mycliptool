@@ -2,34 +2,30 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>剪贴板助手</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background-color: #f4f4f9; }
-        .controls { display: flex; gap: 10px; margin-bottom: 20px; position: sticky; top: 0; background: #f4f4f9; padding: 10px 0; }
-        button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; transition: 0.2s; }
-        .btn-clear { background-color: #ff4d4f; color: white; }
-        .btn-file { background-color: #1890ff; color: white; position: relative; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; position: sticky; top: 0; background: #f4f4f9; padding: 10px 0; z-index: 100; }
+        button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; transition: 0.2s; -webkit-tap-highlight-color: transparent; }
+        .btn-clear { background-color: #00ff40; color: white; }
+        .btn-file { background-color: #1890ff; color: white; }
         #fileInput { display: none; }
-        
         #buttonContainer { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .name-btn { background-color: white; color: #333; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .name-btn:active { background-color: #e6f7ff; transform: scale(0.95); }
-        
-        .status { margin-top: 10px; font-size: 12px; color: #666; text-align: center; }
+        .status { margin-top: 10px; font-size: 12px; color: #666; text-align: center; min-height: 1.2em; }
     </style>
 </head>
 <body>
-
+<!-- 第二个版本：旨在解决粘贴板的相关问题 -->
     <div class="controls">
         <button class="btn-clear" onclick="clearClipboard()">清空剪贴板</button>
         <button class="btn-file" onclick="document.getElementById('fileInput').click()">打开 TXT 文件</button>
         <input type="file" id="fileInput" accept=".txt">
     </div>
 
-    <div id="buttonContainer">
-        </div>
-
+    <div id="buttonContainer"></div>
     <div id="status" class="status">请先导入 TXT 文件</div>
 
     <script>
@@ -37,22 +33,18 @@
         const container = document.getElementById('buttonContainer');
         const status = document.getElementById('status');
 
-        // 1. 读取文件并生成按钮
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = function(event) {
                 const content = event.target.result;
                 const lines = content.split(/\r?\n/);
-                
-                container.innerHTML = ''; // 清空旧按钮
+                container.innerHTML = '';
                 let count = 0;
-
                 lines.forEach(line => {
                     const trimmedLine = line.trim();
-                    if (trimmedLine) { // 仅处理非空白行
+                    if (trimmedLine) {
                         createButton(trimmedLine);
                         count++;
                     }
@@ -62,39 +54,60 @@
             reader.readAsText(file);
         });
 
-        // 2. 创建名字按钮
         function createButton(text) {
             const btn = document.createElement('button');
             btn.className = 'name-btn';
             btn.innerText = text;
+            // 使用 touchstart 提升移动端响应，或者保持 onclick
             btn.onclick = () => appendToClipboard(text);
             container.appendChild(btn);
         }
 
-        // 3. 核心功能：读取并追加
         async function appendToClipboard(newName) {
+            // 强制网页获得焦点
+            window.focus();
+
             try {
-                // 尝试读取当前剪贴板
                 let currentText = "";
-                try {
-                    currentText = await navigator.clipboard.readText();
-                } catch (err) {
-                    console.warn("无法读取剪贴板，可能未授权，将直接写入。");
+                
+                // 检查权限状态 (部分浏览器支持)
+                if (navigator.permissions) {
+                    try {
+                        const permissionStatus = await navigator.permissions.query({ name: 'clipboard-read' });
+                        if (permissionStatus.state === 'denied') {
+                            throw new Error("剪贴板读取权限被拒绝，请在浏览器设置中开启。");
+                        }
+                    } catch (pErr) {
+                        console.log("无法预检权限，尝试直接执行");
+                    }
                 }
 
-                // 拼接内容（如果剪贴板已有内容，可以加个空格或换行，这里演示直接连接）
+                // 尝试读取
+                try {
+                    currentText = await navigator.clipboard.readText();
+                } catch (readErr) {
+                    console.warn("读取失败，可能因为环境不支持或未聚焦", readErr);
+                    // 如果读取失败，我们就回退到直接覆盖写入模式，不报错
+                    currentText = ""; 
+                }
+
                 const updatedText = currentText + newName;
-                
-                // 写回剪贴板
                 await navigator.clipboard.writeText(updatedText);
                 showTempStatus(`已添加: ${newName}`);
             } catch (err) {
-                alert('操作失败: ' + err);
+                console.error(err);
+                // 终极保底方案：如果 read 失败，至少保证 write 能成功
+                try {
+                    await navigator.clipboard.writeText(newName);
+                    showTempStatus(`(覆盖写入) 已添加: ${newName}`);
+                } catch (writeErr) {
+                    alert('复制失败，请确保页面已聚焦并授予剪贴板权限');
+                }
             }
         }
 
-        // 4. 清空剪贴板
         async function clearClipboard() {
+            window.focus();
             try {
                 await navigator.clipboard.writeText("");
                 showTempStatus("剪贴板已清空");
@@ -104,9 +117,11 @@
         }
 
         function showTempStatus(msg) {
-            const oldText = status.innerText;
+            const currentMsg = status.innerText;
             status.innerText = msg;
-            setTimeout(() => status.innerText = oldText, 1500);
+            setTimeout(() => {
+                if(status.innerText === msg) status.innerText = currentMsg;
+            }, 1500);
         }
     </script>
 </body>
