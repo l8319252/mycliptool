@@ -8,7 +8,7 @@
         body { font-family: sans-serif; padding: 20px; background-color: #f4f4f9; }
         .controls { display: flex; gap: 10px; margin-bottom: 20px; position: sticky; top: 0; background: #f4f4f9; padding: 10px 0; z-index: 100; }
         button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; transition: 0.2s; -webkit-tap-highlight-color: transparent; }
-        .btn-clear { background-color: #00ff40; color: white; }
+        .btn-clear { background-color: #ff4d4f; color: white; }
         .btn-file { background-color: #1890ff; color: white; }
         #fileInput { display: none; }
         #buttonContainer { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -91,7 +91,7 @@
                     currentText = ""; 
                 }
 
-                const updatedText = currentText + newName;
+                const updatedText = currentText + newName + "\n";
                 await navigator.clipboard.writeText(updatedText);
                 showTempStatus(`已添加: ${newName}`);
             } catch (err) {
