@@ -7,87 +7,106 @@
     <style>
         body { font-family: sans-serif; padding: 20px; background-color: #f4f4f9; }
         .controls { display: flex; gap: 10px; margin-bottom: 20px; position: sticky; top: 0; background: #f4f4f9; padding: 10px 0; z-index: 100; }
-        button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; transition: 0.2s; -webkit-tap-highlight-color: transparent; }
-        .btn-clear { background-color: #ff4d4f; color: white; }
-        .btn-file { background-color: #1890ff; color: white; }
-        #fileInput { display: none; }
+        button, select { padding: 12px 15px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; transition: 0.2s; -webkit-tap-highlight-color: transparent; }
+        select { background-color: white; flex-grow: 1; outline: none; }
+        .btn-clear { background-color: #ff4d4f; color: white; border: none; cursor: pointer; }
         #buttonContainer { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .name-btn { background-color: white; color: #333; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .name-btn { background-color: white; color: #333; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; }
         .name-btn:active { background-color: #e6f7ff; transform: scale(0.95); }
         .status { margin-top: 10px; font-size: 12px; color: #666; text-align: center; min-height: 1.2em; }
     </style>
 </head>
 <body>
-<!-- 第二个版本：旨在解决粘贴板的相关问题 -->
+
     <div class="controls">
+        <select id="categorySelect" onchange="loadCategoryData()">
+            <option value="mon">周一</option>
+            <option value="tue">周二</option>
+            <option value="wed">周三</option>
+            <option value="thu">周四</option>
+            <option value="fri">周五</option>
+            <option value="sat">周六</option>
+            <option value="sun">周日</option>
+            <option value="other">其他</option>
+        </select>
         <button class="btn-clear" onclick="clearClipboard()">清空剪贴板</button>
-        <button class="btn-file" onclick="document.getElementById('fileInput').click()">打开 TXT 文件</button>
-        <input type="file" id="fileInput" accept=".txt">
     </div>
 
     <div id="buttonContainer"></div>
-    <div id="status" class="status">请先导入 TXT 文件</div>
+    <div id="status" class="status"></div>
 
     <script>
-        const fileInput = document.getElementById('fileInput');
+        // 你的数据库配置：直接在对应数组中添加/修改字符串即可
+        const db = {
+            mon: [
+                "陈庚泽",
+                "黄炜城",
+                "林舜英",
+                "蒋世宇",
+                "李文瀚",
+                "贺梓翔",
+                "吕昕泽",
+                "吴煜楷"
+            ],
+            tue: ["周二任务1", "周二任务2"],
+            wed: ["周三任务1", "周三任务2"],
+            thu: ["周四任务1", "周四任务2"],
+            fri: ["周五任务1", "周五任务2"],
+            sat: ["周六任务1", "周六任务2"],
+            sun: ["周日任务1", "周日任务2"],
+            other: ["其他备选项1", "其他备选项2"]
+        };
+
         const container = document.getElementById('buttonContainer');
         const status = document.getElementById('status');
+        const categorySelect = document.getElementById('categorySelect');
 
-        fileInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                const content = event.target.result;
-                const lines = content.split(/\r?\n/);
-                container.innerHTML = '';
-                let count = 0;
-                lines.forEach(line => {
-                    const trimmedLine = line.trim();
-                    if (trimmedLine) {
-                        createButton(trimmedLine);
-                        count++;
-                    }
-                });
-                status.innerText = `成功导入 ${count} 条数据`;
-            };
-            reader.readAsText(file);
-        });
+        // 页面加载完成后自动渲染第一项
+        window.onload = function() {
+            loadCategoryData();
+        };
+
+        // 切换菜单时重新生成按钮
+        function loadCategoryData() {
+            const selectedKey = categorySelect.value;
+            const items = db[selectedKey] || [];
+            
+            container.innerHTML = '';
+            items.forEach(text => {
+                createButton(text);
+            });
+            status.innerText = `已加载 ${items.length} 条数据`;
+        }
 
         function createButton(text) {
             const btn = document.createElement('button');
             btn.className = 'name-btn';
             btn.innerText = text;
-            // 使用 touchstart 提升移动端响应，或者保持 onclick
             btn.onclick = () => appendToClipboard(text);
             container.appendChild(btn);
         }
 
         async function appendToClipboard(newName) {
-            // 强制网页获得焦点
             window.focus();
 
             try {
                 let currentText = "";
                 
-                // 检查权限状态 (部分浏览器支持)
                 if (navigator.permissions) {
                     try {
                         const permissionStatus = await navigator.permissions.query({ name: 'clipboard-read' });
                         if (permissionStatus.state === 'denied') {
-                            throw new Error("剪贴板读取权限被拒绝，请在浏览器设置中开启。");
+                            throw new Error("剪贴板读取权限被拒绝");
                         }
                     } catch (pErr) {
                         console.log("无法预检权限，尝试直接执行");
                     }
                 }
 
-                // 尝试读取
                 try {
                     currentText = await navigator.clipboard.readText();
                 } catch (readErr) {
-                    console.warn("读取失败，可能因为环境不支持或未聚焦", readErr);
-                    // 如果读取失败，我们就回退到直接覆盖写入模式，不报错
+                    console.warn("读取失败，回退到覆盖模式", readErr);
                     currentText = ""; 
                 }
 
@@ -96,7 +115,6 @@
                 showTempStatus(`已添加: ${newName}`);
             } catch (err) {
                 console.error(err);
-                // 终极保底方案：如果 read 失败，至少保证 write 能成功
                 try {
                     await navigator.clipboard.writeText(newName);
                     showTempStatus(`(覆盖写入) 已添加: ${newName}`);
